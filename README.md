@@ -15,16 +15,16 @@ The system integrates a Python-based backend with a lightweight dashboard interf
 ## Project Structure
 
 DC_RANCE/
-├── backend/
-│   ├── server.py
-│   └── engine/
-│       ├── __init__.py
-│       └── ...
-├── frontend/
-│   └── dashboard.html
-├── requirements.txt
-├── README.md
-└── .gitignore
+  backend/
+    server.py
+    engine/
+      __init__.py
+      ...
+  frontend/
+    dashboard.html
+  requirements.txt
+  README.md
+  .gitignore
 
 ## Technology Stack
 - Backend: Python
