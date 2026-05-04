@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RANCE — Real-Time Adaptive Compression Engine</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;600;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#08080e;--s1:#0f0f17;--s2:#16161f;--s3:#1e1e28;
+  --border:#252530;--border2:#303040;
+  --accent:#7c6aff;--accent2:#ff6b9d;--green:#00e5a0;--amber:#ffb347;--red:#ff4f6a;--blue:#4fc3f7;
+  --text:#eeedf8;--muted:#6a6980;--dim:#3a3950;
+  --mono:'JetBrains Mono',monospace;--sans:'Syne',sans-serif;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:100vh;overflow-x:hidden}
+
+/* ── Layout ── */
+.shell{display:grid;grid-template-rows:56px 1fr;min-height:100vh}
+nav{
+  display:flex;align-items:center;padding:0 24px;gap:16px;
+  border-bottom:1px solid var(--border);background:var(--s1);
+  position:sticky;top:0;z-index:100
+}
+.logo{font-size:18px;font-weight:800;letter-spacing:-1px}
+.logo em{color:var(--accent);font-style:normal}
+.nav-tag{font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:2px;text-transform:uppercase}
+.conn-dot{width:8px;height:8px;border-radius:50%;background:var(--dim);margin-left:auto;transition:background .3s}
+.conn-dot.live{background:var(--green);box-shadow:0 0 6px var(--green)}
+.conn-label{font-size:11px;font-family:var(--mono);color:var(--muted)}
+
+.body{display:grid;grid-template-columns:420px 1fr;gap:0;height:calc(100vh - 56px);overflow:hidden}
+
+/* ── Left: input panel ── */
+.input-panel{
+  border-right:1px solid var(--border);display:flex;flex-direction:column;
+  overflow-y:auto;background:var(--s1)
+}
+.section{padding:18px 20px;border-bottom:1px solid var(--border)}
+.section-title{font-size:10px;font-family:var(--mono);color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px}
+
+textarea{
+  width:100%;min-height:180px;background:var(--s2);border:1px solid var(--border);
+  border-radius:8px;color:var(--text);font-family:var(--mono);font-size:12px;
+  padding:12px;resize:vertical;outline:none;line-height:1.6;transition:border-color .2s
+}
+textarea:focus{border-color:var(--accent)}
+textarea::placeholder{color:var(--muted)}
+
+.presets{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+.chip{
+  font-size:10px;font-family:var(--mono);padding:4px 9px;border-radius:4px;
+  border:1px solid var(--border);background:var(--s3);color:var(--muted);
+  cursor:pointer;transition:all .15s;white-space:nowrap
+}
+.chip:hover{border-color:var(--accent);color:var(--accent);background:rgba(124,106,255,.08)}
+.chip.active{border-color:var(--accent);color:var(--accent);background:rgba(124,106,255,.12)}
+
+.meta-row{display:flex;gap:14px;margin-top:8px;font-size:11px;font-family:var(--mono);color:var(--muted)}
+.meta-row b{color:var(--text)}
+
+.mode-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px}
+.mode-btn{
+  padding:8px 6px;border-radius:6px;border:1px solid var(--border);
+  background:var(--s3);color:var(--muted);font-family:var(--mono);font-size:10px;
+  cursor:pointer;text-align:center;transition:all .15s;line-height:1.4
+}
+.mode-btn .mb-label{font-weight:700;display:block;margin-bottom:2px;font-size:11px}
+.mode-btn:hover,.mode-btn.sel{border-color:var(--accent);color:var(--accent);background:rgba(124,106,255,.1)}
+
+.run-btn{
+  width:100%;padding:13px;background:var(--accent);color:#fff;border:none;
+  border-radius:8px;font-family:var(--sans);font-size:14px;font-weight:600;
+  cursor:pointer;transition:all .2s;letter-spacing:.3px;margin-top:4px
+}
+.run-btn:hover{background:#6a58ef;transform:translateY(-1px)}
+.run-btn:disabled{background:var(--s3);color:var(--muted);cursor:not-allowed;transform:none}
+.run-btn.busy{background:var(--s2);color:var(--accent);border:1px solid var(--accent)}
+
+.spinner{display:inline-block;width:12px;height:12px;border:2px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:5px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Right: results panel ── */
+.results-panel{overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px;background:var(--bg)}
+
+/* ── Cards ── */
+.card{background:var(--s1);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.card-head{
+  padding:10px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between
+}
+.card-head-title{font-size:10px;font-family:var(--mono);letter-spacing:2px;text-transform:uppercase;color:var(--muted)}
+.card-body{padding:16px}
+
+/* ── Metric grid ── */
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.metric{background:var(--s2);border-radius:8px;padding:12px 14px;border:1px solid var(--border)}
+.metric-val{font-size:20px;font-weight:800;font-family:var(--mono);line-height:1}
+.metric-lbl{font-size:9px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:1px;font-family:var(--mono)}
+
+/* ── Badges ── */
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:4px;font-family:var(--mono);font-size:11px;font-weight:700}
+.b-lz4    {background:rgba(0,229,160,.1);color:var(--green);border:1px solid rgba(0,229,160,.2)}
+.b-zstd   {background:rgba(124,106,255,.1);color:var(--accent);border:1px solid rgba(124,106,255,.2)}
+.b-brotli {background:rgba(255,107,157,.1);color:var(--accent2);border:1px solid rgba(255,107,157,.2)}
+.b-snappy {background:rgba(255,179,71,.1);color:var(--amber);border:1px solid rgba(255,179,71,.2)}
+.b-none   {background:rgba(107,105,128,.1);color:var(--muted);border:1px solid var(--border)}
+.c-excellent{background:rgba(0,229,160,.1);color:var(--green);border:1px solid rgba(0,229,160,.2)}
+.c-good     {background:rgba(124,106,255,.1);color:var(--accent);border:1px solid rgba(124,106,255,.2)}
+.c-moderate {background:rgba(255,179,71,.1);color:var(--amber);border:1px solid rgba(255,179,71,.2)}
+.c-congested{background:rgba(255,79,106,.1);color:var(--red);border:1px solid rgba(255,79,106,.2)}
+.c-critical {background:rgba(255,79,106,.2);color:var(--red);border:1px solid rgba(255,79,106,.3)}
+.p-text    {background:rgba(0,229,160,.1);color:var(--green);border:1px solid rgba(0,229,160,.2)}
+.p-json    {background:rgba(79,195,247,.1);color:var(--blue);border:1px solid rgba(79,195,247,.2)}
+.p-binary  {background:rgba(255,179,71,.1);color:var(--amber);border:1px solid rgba(255,179,71,.2)}
+.p-compressed{background:rgba(255,107,157,.1);color:var(--accent2);border:1px solid rgba(255,107,157,.2)}
+.p-mixed   {background:rgba(107,105,128,.1);color:var(--muted);border:1px solid var(--border)}
+
+/* ── Score bars ── */
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.bar-name{font-size:11px;font-family:var(--mono);color:var(--muted);width:100px;flex-shrink:0}
+.bar-track{flex:1;height:5px;background:var(--s3);border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px;transition:width .5s cubic-bezier(.4,0,.2,1)}
+.bar-val{font-size:10px;font-family:var(--mono);color:var(--muted);width:30px;text-align:right}
+.bar-win{font-size:9px;color:var(--green);font-family:var(--mono);margin-left:3px}
+
+/* ── Reason box ── */
+.reason{background:var(--s2);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;padding:10px 14px;font-size:12px;font-family:var(--mono);color:var(--text);line-height:1.6}
+
+/* ── Network grid ── */
+.net-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.net-item{background:var(--s2);border-radius:6px;padding:10px 12px;border:1px solid var(--border)}
+.net-val{font-size:15px;font-weight:700;font-family:var(--mono)}
+.net-lbl{font-size:9px;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:1px;font-family:var(--mono)}
+
+/* ── History ── */
+.hist-list{display:flex;flex-direction:column;gap:5px;max-height:200px;overflow-y:auto}
+.hist-item{
+  display:flex;align-items:center;gap:8px;padding:7px 10px;
+  background:var(--s2);border-radius:6px;font-family:var(--mono);font-size:10px;
+  border:1px solid var(--border);cursor:pointer;transition:border-color .15s
+}
+.hist-item:hover{border-color:var(--accent)}
+.hist-n{color:var(--dim);width:24px}
+.hist-preview{flex:1;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hist-ratio{color:var(--green);font-weight:700}
+
+/* ── Empty ── */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 24px;text-align:center;gap:10px;color:var(--muted);flex:1}
+.empty-icon{font-size:36px;opacity:.3}
+.empty-text{font-size:11px;font-family:var(--mono);letter-spacing:1px;line-height:1.7}
+
+/* ── Live indicator ── */
+.live-pill{
+  display:inline-flex;align-items:center;gap:5px;padding:3px 8px;
+  background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.2);
+  border-radius:10px;font-size:9px;font-family:var(--mono);color:var(--green);
+  letter-spacing:1px;text-transform:uppercase
+}
+.live-dot{width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ── Round-trip indicator ── */
+.rt-ok  {color:var(--green);font-family:var(--mono);font-size:11px}
+.rt-fail{color:var(--red);  font-family:var(--mono);font-size:11px}
+
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--s1)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+</style>
+</head>
+<body>
+<div class="shell">
+<nav>
+  <div class="logo">R<em>A</em>NCE</div>
+  <div class="nav-tag">Real-Time Adaptive Network Compression Engine</div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+    <div class="conn-dot" id="conn-dot"></div>
+    <div class="conn-label" id="conn-label">connecting…</div>
+  </div>
+</nav>
+
+<div class="body">
+<!-- ── Input panel ── -->
+<div class="input-panel">
+
+  <div class="section">
+    <div class="section-title">Input data</div>
+    <textarea id="input" placeholder="Paste any data — JSON, logs, CSV, text, binary-like strings, code, anything.&#10;&#10;RANCE will analyse it with the real engine and tell you exactly what happens."></textarea>
+    <div class="meta-row">
+      <span>Size: <b id="size-lbl">0 B</b></span>
+      <span>Detected: <b id="type-lbl">—</b></span>
+    </div>
+    <div class="presets">
+      <button class="chip" onclick="loadPreset('json')">JSON</button>
+      <button class="chip" onclick="loadPreset('log')">Log file</button>
+      <button class="chip" onclick="loadPreset('csv')">CSV</button>
+      <button class="chip" onclick="loadPreset('text')">Article</button>
+      <button class="chip" onclick="loadPreset('code')">Source code</button>
+      <button class="chip" onclick="loadPreset('repeat')">Repetitive</button>
+      <button class="chip" onclick="loadPreset('binary')">Binary-like</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Network — live from probe</div>
+    <div class="net-grid" id="live-net">
+      <div class="net-item"><div class="net-val" id="n-rtt" style="color:var(--amber)">—</div><div class="net-lbl">RTT</div></div>
+      <div class="net-item"><div class="net-val" id="n-bw"  style="color:var(--green)">—</div><div class="net-lbl">Bandwidth</div></div>
+      <div class="net-item"><div class="net-val" id="n-loss" style="color:var(--muted)">—</div><div class="net-lbl">Loss</div></div>
+      <div class="net-item"><div class="net-val" id="n-cond" style="color:var(--muted)">—</div><div class="net-lbl">Condition</div></div>
+    </div>
+    <div style="margin-top:8px;font-size:10px;font-family:var(--mono);color:var(--muted)">
+      Probe: <span id="probe-host">—</span> · Updated every 2s
+    </div>
+  </div>
+
+  <div class="section">
+    <button class="run-btn" id="run-btn" onclick="runCompress()">Compress with RANCE</button>
+  </div>
+
+  <div class="section" style="flex:1">
+    <div class="section-title">Session history</div>
+    <div class="hist-list" id="history">
+      <div style="font-size:10px;font-family:var(--mono);color:var(--dim);padding:8px 0">No runs yet</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Results panel ── -->
+<div class="results-panel" id="results-panel">
+  <div class="empty" id="empty-state">
+    <div class="empty-icon">⟳</div>
+    <div class="empty-text">
+      Paste any data and hit Compress.<br>
+      The real RANCE engine will pick the best<br>
+      algorithm based on actual network conditions.
+    </div>
+  </div>
+  <div id="results" style="display:none;flex-direction:column;gap:14px"></div>
+</div>
+
+</div><!-- body -->
+</div><!-- shell -->
+
+<script>
+const API = window.location.origin;
+const WS  = `ws://${window.location.host}/ws`;
+let ws, history = [], runCount = 0;
+
+// ── Presets ─────────────────────────────────────────────────────────────────
+const PRESETS = {
+  json: `{"users":[{"id":1,"name":"Arjun Sharma","email":"arjun@example.com","city":"Kodaikanal","dept":"Engineering","active":true,"score":98.5},{"id":2,"name":"Priya Nair","email":"priya@example.com","city":"Chennai","dept":"Product","active":false,"score":87.2},{"id":3,"name":"Ravi Kumar","email":"ravi@example.com","city":"Bangalore","dept":"Engineering","active":true,"score":92.1}],"meta":{"total":3,"page":1,"timestamp":"2026-04-05T10:30:00Z","version":"2.1.0"}}`,
+  log: `[2026-04-05 10:00:01.234] INFO  [server] HTTP server started on 0.0.0.0:8080
+[2026-04-05 10:00:02.001] INFO  [db] PostgreSQL connection pool ready (max=20)
+[2026-04-05 10:00:05.123] DEBUG [auth] JWT validated for user_id=1042 ip=192.168.1.100
+[2026-04-05 10:00:06.456] DEBUG [api] GET /api/v2/users 200 OK 12ms cache=HIT
+[2026-04-05 10:00:07.789] DEBUG [api] POST /api/v2/compress 201 Created 34ms
+[2026-04-05 10:00:10.012] WARN  [monitor] Memory usage high: 82% of 4096MB
+[2026-04-05 10:00:11.345] ERROR [cache] Redis connection timeout after 5000ms host=redis-01
+[2026-04-05 10:00:12.678] INFO  [cache] Retrying connection attempt 1/3 delay=1000ms`,
+  csv: `id,sensor_name,temperature_c,humidity_pct,co2_ppm,pressure_hpa,timestamp,status
+1,sensor-node-01,24.53,62.31,412,1013.25,2026-04-05T10:00:00Z,ok
+2,sensor-node-02,25.12,61.87,398,1013.18,2026-04-05T10:00:01Z,ok
+3,sensor-node-03,23.91,63.12,421,1013.31,2026-04-05T10:00:02Z,warn
+4,sensor-node-04,24.78,62.55,415,1013.22,2026-04-05T10:00:03Z,ok
+5,sensor-node-05,25.34,61.23,408,1013.19,2026-04-05T10:00:04Z,ok
+6,sensor-node-06,26.01,60.98,432,1012.98,2026-04-05T10:00:05Z,warn`,
+  text: `The science of data compression has transformed modern computing. At its core, compression works by identifying and eliminating redundancy in data. Text is highly compressible because human language follows predictable patterns — certain words, phrases, and letter combinations appear far more frequently than others. Lossless compression algorithms like LZ77, Huffman coding, and arithmetic coding exploit these statistical regularities to represent data using fewer bits without losing any information. The RANCE engine builds on these foundations by dynamically selecting the best algorithm based on both the nature of the data and real-time network conditions.`,
+  code: `def adaptive_compress(data: bytes, network: NetworkSnapshot) -> bytes:
+    """Select and apply the best compression algorithm for current conditions."""
+    profile = detect_data_profile(data)
+    condition = classify_network(network)
+    
+    if profile == DataProfile.COMPRESSED:
+        return data  # already compressed, skip
+    
+    weights = compute_weights(condition, profile)
+    scores = {}
+    for algo_id, algo in ALGORITHM_REGISTRY.items():
+        scores[algo_id] = (
+            weights['ratio'] * algo.ratio_score +
+            weights['speed'] * algo.speed_score -
+            weights['cpu']   * algo.cpu_cost
+        )
+    
+    best = max(scores, key=scores.get)
+    result = ALGORITHM_REGISTRY[best].compress(data)
+    return encode_frame(best, result.data)`,
+  repeat: `RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE RANCE`,
+  binary: `\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F\x10\x11\x12\x13\xFF\xFE\xFD\xFC\xFB\xFA\xF9\xF8\xF7\xF6\xF5\xF4PNG HEADER DATA \x89\x50\x4E\x47\x0D\x0A binary stream with varied byte patterns spanning the full 0-255 range making it resistant to standard compression \xAA\xBB\xCC\xDD\xEE\xFF\x00\x11\x22\x33\x44\x55\x66\x77\x88\x99`
+};
+
+function loadPreset(k) {
+  document.getElementById('input').value = PRESETS[k];
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  event.target.classList.add('active');
+  updateMeta();
+}
+
+// ── Meta display ────────────────────────────────────────────────────────────
+function detectType(text) {
+  if (!text) return '—';
+  const t = text.trim();
+  if (t.startsWith('{') || t.startsWith('[')) return 'JSON';
+  const printable = [...text.slice(0,200)].filter(c => c.charCodeAt(0) >= 32).length;
+  if (printable / Math.min(text.length,200) > 0.85) return 'TEXT';
+  return 'BINARY';
+}
+function fmtBytes(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1024*1024) return (n/1024).toFixed(1) + ' KB';
+  return (n/1024/1024).toFixed(2) + ' MB';
+}
+function updateMeta() {
+  const v = document.getElementById('input').value;
+  const b = new TextEncoder().encode(v).length;
+  document.getElementById('size-lbl').textContent = fmtBytes(b);
+  document.getElementById('type-lbl').textContent = detectType(v);
+}
+document.getElementById('input').addEventListener('input', updateMeta);
+
+// ── WebSocket for live network stats ────────────────────────────────────────
+function connectWS() {
+  try {
+    ws = new WebSocket(WS);
+    ws.onopen = () => {
+      document.getElementById('conn-dot').classList.add('live');
+      document.getElementById('conn-label').textContent = 'live';
+    };
+    ws.onmessage = e => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'network') updateNetDisplay(msg.data);
+      } catch{}
+    };
+    ws.onclose = () => {
+      document.getElementById('conn-dot').classList.remove('live');
+      document.getElementById('conn-label').textContent = 'reconnecting…';
+      setTimeout(connectWS, 3000);
+    };
+    ws.onerror = () => ws.close();
+  } catch(e) {
+    setTimeout(connectWS, 5000);
+  }
+}
+
+// Also poll /network every 3s as fallback
+function pollNetwork() {
+  fetch(API + '/network')
+    .then(r => r.json())
+    .then(d => {
+      updateNetDisplay(d);
+      document.getElementById('conn-dot').classList.add('live');
+      document.getElementById('conn-label').textContent = 'live';
+    })
+    .catch(() => {
+      document.getElementById('conn-dot').classList.remove('live');
+      document.getElementById('conn-label').textContent = 'offline — start server.py';
+    });
+}
+
+function updateNetDisplay(d) {
+  document.getElementById('n-rtt').textContent  = d.rtt_ms + ' ms';
+  document.getElementById('n-bw').textContent   = d.bandwidth_mbps + ' Mbps';
+  const lossPct = (d.loss_rate * 100).toFixed(1) + '%';
+  const lossEl  = document.getElementById('n-loss');
+  lossEl.textContent = lossPct;
+  lossEl.style.color = d.loss_rate > 0.05 ? 'var(--red)' : d.loss_rate > 0.01 ? 'var(--amber)' : 'var(--muted)';
+  const condEl = document.getElementById('n-cond');
+  condEl.textContent = d.condition || '—';
+  const condColors = {excellent:'var(--green)',good:'var(--accent)',moderate:'var(--amber)',congested:'var(--red)',critical:'var(--red)'};
+  condEl.style.color = condColors[d.condition] || 'var(--muted)';
+  if (d.probe_host) document.getElementById('probe-host').textContent = d.probe_host;
+}
+
+// ── Compress ────────────────────────────────────────────────────────────────
+async function runCompress() {
+  const input = document.getElementById('input').value.trim();
+  if (!input) return;
+
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.className = 'run-btn busy';
+  btn.innerHTML = '<span class="spinner"></span>Compressing…';
+
+  try {
+    const res = await fetch(API + '/compress', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({data: input, encoding: 'text'})
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    renderResult(data, input);
+  } catch(e) {
+    renderError(e.message);
+  } finally {
+    btn.disabled = false;
+    btn.className = 'run-btn';
+    btn.textContent = 'Compress with RANCE';
+  }
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function algoBadgeClass(a) {
+  if (a.includes('lz4'))    return 'b-lz4';
+  if (a.includes('zstd'))   return 'b-zstd';
+  if (a.includes('brotli')) return 'b-brotli';
+  if (a.includes('snappy')) return 'b-snappy';
+  return 'b-none';
+}
+function condClass(c)    { return 'c-'+(c||'').toLowerCase() }
+function profileClass(p) {
+  const m = {TEXT:'p-text',JSON:'p-json',BINARY:'p-binary',COMPRESSED:'p-compressed',MIXED:'p-mixed'};
+  return m[(p||'').toUpperCase()] || 'p-mixed';
+}
+function algoColor(a) {
+  if (a.includes('lz4'))    return 'var(--green)';
+  if (a.includes('zstd'))   return 'var(--accent)';
+  if (a.includes('brotli')) return 'var(--accent2)';
+  if (a.includes('snappy')) return 'var(--amber)';
+  return 'var(--muted)';
+}
+
+// ── Render result ────────────────────────────────────────────────────────────
+function renderResult(r, input) {
+  runCount++;
+  history.unshift({n: runCount, preview: input.slice(0,60), algo: r.algo, ratio: r.ratio, condition: r.condition});
+
+  const scores  = r.scores || {};
+  const maxScore = Math.max(...Object.values(scores), 0.01);
+  const winner  = r.algo;
+
+  const barsHTML = Object.entries(scores)
+    .sort((a,b) => b[1]-a[1])
+    .map(([name, sc]) => `
+      <div class="bar-row">
+        <div class="bar-name">${name}</div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:${(sc/maxScore*100).toFixed(1)}%;background:${algoColor(name)}"></div>
+        </div>
+        <div class="bar-val">${sc.toFixed(2)}</div>
+        ${name === winner ? '<div class="bar-win">✓ picked</div>' : ''}
+      </div>`).join('');
+
+  const net = r.network || {};
+  const rtOk = r.roundtrip_ok;
+
+  document.getElementById('empty-state').style.display = 'none';
+  const el = document.getElementById('results');
+  el.style.display = 'flex';
+  el.innerHTML = `
+    <!-- Decision card -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-head-title">Decision</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span class="live-pill"><span class="live-dot"></span>real result</span>
+          <span class="badge ${condClass(r.condition)}">${r.condition}</span>
+          <span class="badge ${algoBadgeClass(r.algo)}">${r.algo}</span>
+          <span class="badge ${profileClass(r.data_profile)}">${r.data_profile}</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="metrics">
+          <div class="metric">
+            <div class="metric-val" style="color:var(--green)">${r.ratio.toFixed(2)}x</div>
+            <div class="metric-lbl">actual ratio</div>
+          </div>
+          <div class="metric">
+            <div class="metric-val" style="color:var(--accent)">${r.savings_pct.toFixed(1)}%</div>
+            <div class="metric-lbl">bytes saved</div>
+          </div>
+          <div class="metric">
+            <div class="metric-val" style="color:var(--amber)">${r.latency_ms.toFixed(2)}ms</div>
+            <div class="metric-lbl">latency</div>
+          </div>
+          <div class="metric">
+            <div class="metric-val">${fmtBytes(r.compressed_size)}</div>
+            <div class="metric-lbl">output size</div>
+          </div>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:16px;font-size:11px;font-family:var(--mono);color:var(--muted)">
+          <span>Input: <b style="color:var(--text)">${fmtBytes(r.original_size)}</b></span>
+          <span>Output: <b style="color:var(--text)">${fmtBytes(r.compressed_size)}</b></span>
+          <span>Round-trip: <span class="${rtOk?'rt-ok':'rt-fail'}">${rtOk ? '✓ verified' : '✗ mismatch'}</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scores card -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-head-title">Algorithm scores</div>
+        <div style="font-size:10px;font-family:var(--mono);color:var(--muted)">weighted by network + data profile</div>
+      </div>
+      <div class="card-body">${barsHTML}</div>
+    </div>
+
+    <!-- Reason card -->
+    <div class="card">
+      <div class="card-head"><div class="card-head-title">Engine decision</div></div>
+      <div class="card-body">
+        <div class="reason">→ ${r.reason || 'Decision based on current network and data profile.'}</div>
+      </div>
+    </div>
+
+    <!-- Network card -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-head-title">Network snapshot (at compression time)</div>
+        <span class="badge ${condClass(r.condition)}">${r.condition}</span>
+      </div>
+      <div class="card-body">
+        <div class="net-grid">
+          <div class="net-item"><div class="net-val" style="color:var(--amber)">${net.rtt_ms ?? '—'} ms</div><div class="net-lbl">RTT</div></div>
+          <div class="net-item"><div class="net-val" style="color:var(--green)">${net.bandwidth_mbps ?? '—'} Mbps</div><div class="net-lbl">Bandwidth</div></div>
+          <div class="net-item"><div class="net-val" style="color:${(net.loss_rate||0)>0.05?'var(--red)':'var(--muted)'}">${((net.loss_rate||0)*100).toFixed(1)}%</div><div class="net-lbl">Packet loss</div></div>
+          <div class="net-item"><div class="net-val" style="color:var(--muted)">${net.jitter_ms ?? '—'} ms</div><div class="net-lbl">Jitter</div></div>
+        </div>
+        ${net.probe_host ? `<div style="margin-top:8px;font-size:10px;font-family:var(--mono);color:var(--dim)">Probed via: ${net.probe_host}</div>` : ''}
+      </div>
+    </div>
+  `;
+
+  renderHistory();
+}
+
+function renderHistory() {
+  if (!history.length) return;
+  document.getElementById('history').innerHTML = history.slice(0,15).map(h => `
+    <div class="hist-item">
+      <div class="hist-n">#${h.n}</div>
+      <div class="hist-preview">${h.preview}…</div>
+      <div class="badge ${algoBadgeClass(h.algo)}" style="font-size:9px;padding:2px 6px">${h.algo}</div>
+      <div class="hist-ratio">${h.ratio.toFixed(2)}x</div>
+    </div>`).join('');
+}
+
+function renderError(msg) {
+  document.getElementById('empty-state').style.display = 'none';
+  const el = document.getElementById('results');
+  el.style.display = 'flex';
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-body" style="font-family:var(--mono);font-size:12px">
+        <div style="color:var(--red);margin-bottom:8px">✗ Error: ${msg}</div>
+        <div style="color:var(--muted);line-height:1.7">
+          Make sure the server is running:<br>
+          <span style="color:var(--accent)">python server.py</span><br><br>
+          Then open this dashboard via <span style="color:var(--accent)">http://127.0.0.1:5000</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+pollNetwork();
+setInterval(pollNetwork, 3000);
+connectWS();
+</script>
+</body>
+</html>
