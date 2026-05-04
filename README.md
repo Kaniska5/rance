@@ -13,17 +13,18 @@ The system integrates a Python-based backend with a lightweight dashboard interf
 - Extensible design for integrating advanced algorithms
 
 ## Project Structure
+
 DC_RANCE/
-│
-├── server.py              # Entry point for the backend server
-├── requirements.txt       # List of dependencies
-├── dashboard.html         # Frontend dashboard interface
-│
-├── engine/                # Core logic and processing modules
-│   ├── __init__.py
-│   ├── (additional modules)
-│
-└── README.md              # Project documentation
+├── backend/
+│   ├── server.py
+│   └── engine/
+│       ├── __init__.py
+│       └── ...
+├── frontend/
+│   └── dashboard.html
+├── requirements.txt
+├── README.md
+└── .gitignore
 
 ## Technology Stack
 - Backend: Python
